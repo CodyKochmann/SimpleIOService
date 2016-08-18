@@ -2,7 +2,7 @@
 # @Author: codykochmann
 # @Date:   2016-08-18 09:33:17
 # @Last Modified 2016-08-18
-# @Last Modified time: 2016-08-18 09:39:51
+# @Last Modified time: 2016-08-18 10:50:57
 
 """
 This is a really lightweight socket server that
@@ -20,7 +20,7 @@ do.
 """
 
 import socket
-import thread
+import threading
 
 class SimpleIOService(object):
     """ This is an easy to use class that acts as a wrapper for
@@ -30,47 +30,65 @@ class SimpleIOService(object):
         in pure Python without needing to load a bulky server
         library that was designed to do that and a whole lot more.
     """
-    def __init__(self, service_function):
+    def __init__(self, service_function, host='', port=8000, autostart=True):
+        # set up all the variables
         self.service_function = service_function
+        self.host = host
+        self.port = port
+        self.autostart = autostart
+        # set up the socket
+        try:
+            self.socket = socket.socket(
+                socket.AF_INET,
+                socket.SOCK_STREAM
+            )
+            self.socket.bind((self.host,self.port))
+            self.socket.listen(8) # listen to up to 8 connections at once
+        except socket.error as e:
+            # make this error handling use logging later
+            print(str(e))
+        # run the autostart if applicable
+        if self.autostart:
+            self.start()
 
+    def start(self):
+        print "starting new thread on {}".format(self.port)
+        self.thread = threading.Thread(target=self.run, args=())
+        self.thread.daemon = True  # Daemonize thread
+        self.thread.start()        # Start the execution
+        #self.thread = thread.start_new_thread(self.start,())
 
-def threaded_function_service(conn,input_function):
-    """ takes data in a port and responds with a function output """
-    collected=''
-    while 1:
-        data = conn.recv(256)
-        print 'parsing: {}'.format(data)
-        if data.startswith('submit'):
-            break
-        if data.endswith("\n") and len(data) is 2:
-            data = data[:-2]
-            break
-        if not data:
-            break
-        collected+=data
-    try:
-        reply=input_function(collected)
-    except Exception, e:
-        reply=e
-        pass
-    print "responding with: {}".format(reply)
-    conn.send(reply)
-    conn.close()
+    def run(self):
+        print "thread successfully starting"
+        while True:
+            conn, addr = self.socket.accept()
+            # change this to use logging
+            print('connected to: '+addr[0]+':'+str(addr[1]))
+            t = threading.Thread(
+                target=self.threaded_function_service,
+                args=(conn,self.service_function))
+            t.daemon = True
+            t.start()
 
-def SimpleIOService(input_function, host='', port=8080):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # set up the socket's settings
-    try:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((host, port))
-        s.listen(5)
-    except socket.error as e:
-        print(str(e))
-    # run an infinite loop that will host this service
-    while True:
-        conn, addr = s.accept()
-        print('connected to: '+addr[0]+':'+str(addr[1]))
-        thread.start_new_thread(threaded_function_service,(conn,input_function))
+    def threaded_function_service(self,conn,input_function):
+        """ takes data in a port and responds with a function output """
+        collected=[]
+        conn.settimeout(0.01)
+        while 1:
+            try:
+                collected.append(conn.recv(1))
+            except socket.timeout:
+                break
+        collected = ''.join(collected)
+        try:
+            reply=input_function(collected)
+        except Exception, e:
+            reply=e
+            pass
+        print "responding with: {}".format(reply)
+        conn.send(reply)
+        conn.close()
+
 
 # test code below
 if __name__ == "__main__":
@@ -78,6 +96,7 @@ if __name__ == "__main__":
         """ returns the length of the string given to the function """
         return "recieved string with the length of: {}".format(len(input_string))
 
-    SimpleIOService(test_function, port=5559)
-
+    io = SimpleIOService(test_function, port=5566)
+    while True:
+        raw_input('press enter to stop')
 
