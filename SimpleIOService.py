@@ -2,7 +2,7 @@
 # @Author: codykochmann
 # @Date:   2016-08-18 09:33:17
 # @Last Modified 2016-08-18
-# @Last Modified time: 2016-08-18 09:35:19
+# @Last Modified time: 2016-08-18 09:39:51
 
 """
 This is a really lightweight socket server that
@@ -21,6 +21,18 @@ do.
 
 import socket
 import thread
+
+class SimpleIOService(object):
+    """ This is an easy to use class that acts as a wrapper for
+        any function. The benefit of using something like this
+        is that it will provide you a lightweight layer that will
+        give you all of the functionality to create an IO service
+        in pure Python without needing to load a bulky server
+        library that was designed to do that and a whole lot more.
+    """
+    def __init__(self, service_function):
+        self.service_function = service_function
+
 
 def threaded_function_service(conn,input_function):
     """ takes data in a port and responds with a function output """
